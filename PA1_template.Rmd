@@ -1,25 +1,144 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Report on Personal Movement Pattern"
+author: "Shalini"
+date: "11/21/2020"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+## Introduction
 
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the “quantified self” movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
 
+This report makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
 
-## What is mean total number of steps taken per day?
+## Loading and Pre-processing the data
+Unzip the folder
 
+```{r}
 
+if(!file.exists('activity.csv')){
+   unzip(zipfile = "activity.zip")
+}
+
+```
+
+Read in the data in the activity.csv file
+```{r}
+activityData <- read.csv(file = "activity.csv", header = TRUE)
+```
+## 1 - What is mean total number of steps taken per day?
+
+```{r}
+# Calculate the total steps taken per day
+totalSteps <- aggregate(steps ~ date, activityData, FUN = sum)
+
+# Make a histogram of the total number of steps taken per day
+hist(totalSteps$steps,
+     main = "Total Steps per Day",
+     xlab = "Number of Steps")
+
+# calculate and report the mean and median of total steps taken per day
+meanSteps <- mean(totalSteps$steps, na.rm = TRUE)
+medSteps <- median(totalSteps$steps, na.rm = TRUE)
+
+meanSteps
+medSteps
+
+```
 
 ## What is the average daily activity pattern?
+```{r}
+# Make a time-series plot of the 5 minute interval and the average number of
+# steps taken, averaged across all days.
+library(ggplot2)
+meanStepsByInt <- aggregate(steps ~ interval, activityData, mean)
+ggplot(data = meanStepsByInt, aes(x = interval, y = steps)) + 
+    geom_line() +
+    ggtitle("Average Daily Activity Pattern")+
+    xlab("5-minute interval")+
+    ylab("Average number of Steps")+
+    theme(plot.title = element_text(hjust = 0.5))
 
+# Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
 
+maxInt <- meanStepsByInt[which.max(meanStepsByInt$steps),]
 
-## Imputing missing values
+maxInt
+```
+ 
+## Imputting missing values
+```{r}
+# Calculate and report the total number of missing values in the dataset
+missingVals <- is.na(activityData$steps)
 
+# Number of NA values in original dataset
+length(missingVals)
 
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+Devise a strategy for filling in all of the missing values in the dataset.
+```{r}
+# Create a new dataset that is equal to the original dataset but with
+# missing data
+
+imp_activityData <- transform(activityData,
+                              steps=ifelse(is.na(activityData$steps),
+                                  meanStepsByInt$steps[match(activityData$interval,
+                                                             meanStepsByInt$interval)],
+                                  activityData$steps))
+ 
+# make a histogram of the total number of steps taken each day and
+# report the mean and median.
+
+impStepsByInt <- aggregate(steps ~ date, imp_activityData, FUN = sum)
+hist(impStepsByInt$steps,
+     main = "Imputed Number of Steps per day",
+     xlab = "Number of Steps")
+```
+
+The mean and median are also calculated
+```{r}
+impMeanSteps <- mean(impStepsByInt$steps, na.rm = TRUE)
+impMeanSteps
+impMedSteps <- median(impStepsByInt$steps, na.rm = TRUE)
+impMedSteps
+diffMean = impMeanSteps - meanSteps
+diffMean
+diffMed = impMedSteps - medSteps
+diffMed
+diffTotal = sum(impStepsByInt$steps) - sum(totalSteps$steps)
+diffTotal
+```
+
+## Are there differences in activity patterns between wee(kdays and weekends?
+```{r}
+# Create a new factor variable in the dataset with two levels - "weekend" and "weekday"
+DayType <- function(date){
+    day <- weekdays(date)
+    if(day %in% c('Monday', 'Tuesday','Wednesday','Thursday','Friday'))
+        return("weekday")
+    else if (day %in% c('Saturday','Sunday'))
+        return("weekend")
+    else
+        stop("Invalid Date Format")
+}
+
+imp_activityData$date <- as.Date(imp_activityData$date)
+imp_activityData$day <- sapply(imp_activityData$date, FUN = DayType)
+
+# Make a panel plot containing a time-series plot of the 5-minute interval
+# and the average number of steps taken across all weekdays or weekends
+
+meanStepsByDay <- aggregate(steps ~ interval + day, imp_activityData, mean)
+ggplot(data = meanStepsByDay, aes(x = interval, y = steps)) + 
+    geom_line() +
+    facet_grid(day ~.)+
+    ggtitle("Average Daily Activity Pattern") + 
+    xlab("5-minute interval")+
+    ylab("Average Number of Steps")+
+    theme(plot.title = element_text(hjust = 0.5))
+```
